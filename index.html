@@ -246,7 +246,7 @@ function loadStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
   document.getElementById("words").value = params.get("q") || "";
   document.getElementById("adjacent").checked = params.get("adjacent") === "1";
-  document.getElementById("wholeWords").checked = params.get("whole") !== "0" && params.get("supersets") !== "1";
+  document.getElementById("wholeWords").checked = params.get("whole") !== "0";
   document.getElementById("caseSensitive").checked = params.get("case") === "1";
   const version = params.get("version");
   if (version && VERSIONS[version]) {
@@ -283,7 +283,7 @@ function loadVersion(key) {
   lines = [];
   search();
   document.getElementById("loadRow").style.display = "";
-  document.getElementById("count").textContent = "";
+  document.getElementById("count").textContent = `Loading ${key}…`;
   // Works when served over http(s). Fails on file:// (browsers block local fetch),
   // in which case the file picker below is used instead.
   fetch(file)
@@ -330,9 +330,15 @@ function buildPattern(words, adjacent, allowSupersets, caseSensitive) {
   return new RegExp(parts.join(joiner), flags);
 }
 
-function buildHighlight(words, allowSupersets, caseSensitive) {
+function buildHighlight(words, adjacent, allowSupersets, caseSensitive) {
   const parts = words.map(w => wordPattern(w, allowSupersets));
-  return new RegExp(parts.join("|"), caseSensitive ? "g" : "gi");
+  const flags = caseSensitive ? "g" : "gi";
+  // Exact Phrase: highlight the whole matched contiguous phrase as one
+  // span, same joiner as buildPattern — not each word separately, which
+  // would mark disjoint words even though the match itself required them
+  // adjacent and in order.
+  if (adjacent) return new RegExp(parts.join("\\s+"), flags);
+  return new RegExp(parts.join("|"), flags);
 }
 
 function appendHighlighted(el, text, re) {
@@ -420,7 +426,7 @@ function search() {
   const allowSupersets = !document.getElementById("wholeWords").checked;
   const caseSensitive = document.getElementById("caseSensitive").checked;
   const pattern = buildPattern(words, adjacent, allowSupersets, caseSensitive);
-  highlight = buildHighlight(words, allowSupersets, caseSensitive);
+  highlight = buildHighlight(words, adjacent, allowSupersets, caseSensitive);
   matches = lines.filter(l => pattern.test(l)).map(line => ({ line, book: bookOf(line) }));
   render();
 }
@@ -432,7 +438,19 @@ function setFilter(f) {
   render();
 }
 
+let lastFiltersRender = null;
 function renderFilters() {
+  // matches is only ever reassigned (not mutated) by search(), so reference
+  // equality is enough to detect "nothing to recompute" — this skips the
+  // count-scan and full DOM rebuild on pagination clicks, which call
+  // render() -> renderFilters() without the match set or filter changing.
+  const filterKey = filter ? filter.type + ":" + filter.value : "none";
+  if (lastFiltersRender && lastFiltersRender.matches === matches && lastFiltersRender.filterKey === filterKey) {
+    updateFilterToggle();
+    return;
+  }
+  lastFiltersRender = { matches, filterKey };
+
   const el = document.getElementById("filters");
   const scrollTop = el.scrollTop;
   el.innerHTML = "";
@@ -452,6 +470,8 @@ function renderFilters() {
   const addItem = (label, n, type, value) => {
     const d = document.createElement("div");
     d.className = "filter-item";
+    d.setAttribute("role", "button");
+    d.setAttribute("tabindex", "0");
     if (filter && filter.type === type && filter.value === value) d.classList.add("active");
     const l = document.createElement("span");
     l.textContent = label;
@@ -459,7 +479,11 @@ function renderFilters() {
     c.className = "n";
     c.textContent = n;
     d.append(l, c);
-    d.addEventListener("click", () => setFilter({ type, value }));
+    const activate = () => setFilter({ type, value });
+    d.addEventListener("click", activate);
+    d.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); activate(); }
+    });
     el.appendChild(d);
   };
   const clear = document.createElement("button");
@@ -580,7 +604,11 @@ document.getElementById("filterToggle").addEventListener("click", () => {
   updateFilterToggle();
 });
 document.getElementById("perPage").addEventListener("change", () => { page = 0; render(); });
-document.getElementById("words").addEventListener("input", search);
+let searchDebounceTimer = null;
+document.getElementById("words").addEventListener("input", () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(search, 150);
+});
 document.getElementById("adjacent").addEventListener("change", search);
 document.getElementById("wholeWords").addEventListener("change", search);
 document.getElementById("caseSensitive").addEventListener("change", search);
