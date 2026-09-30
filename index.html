@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bible Search</title>
+<style>
+  :root {
+    --bg: #14171c;
+    --header: #0d2a4a;
+    --card: #1d222a;
+    --card-hover: #242b35;
+    --border: #2f3742;
+    --text: #d8dde4;
+    --muted: #8b95a3;
+    --accent: #6fa8ff;
+    --accent-strong: #3b82f6;
+    --mark-bg: #5c4d12;
+    --mark-fg: #ffe08a;
+  }
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  a { color: var(--accent); }
+  header {
+    background: var(--header);
+    border-bottom: 3px solid var(--accent-strong);
+    padding: 1rem 1.5rem;
+  }
+  header h1 {
+    max-width: 1100px;
+    margin: 0 auto;
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #fff;
+  }
+  header h1 span { font-weight: 300; opacity: 0.75; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  .search-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  label.field { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  select, input[type="text"], input[type="file"] {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+  select { padding: 0.4rem 0.6rem; }
+  input[type="text"] {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    font-size: 1.15rem;
+    margin: 0 0 0.9rem;
+  }
+  input[type="text"]::placeholder { color: var(--muted); }
+  input[type="text"]:focus, select:focus {
+    outline: none;
+    border-color: var(--accent-strong);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+  input[type="file"] { font-size: 0.85rem; padding: 0.3rem; }
+  .row { margin-bottom: 0.75rem; }
+  #loadRow { margin-bottom: 0.75rem; }
+  .flags { display: flex; flex-direction: column; gap: 0.5rem; }
+  .flags label { font-size: 0.95rem; cursor: pointer; display: grid; grid-template-columns: 1.5rem 9.5rem 1fr; align-items: baseline; }
+  .flags input { accent-color: var(--accent-strong); margin: 0; justify-self: start; }
+  .hint { color: var(--muted); font-size: 0.82rem; }
+  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
+  .layout.empty { display: none; }
+  aside#filters {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+  .clear-all {
+    display: block;
+    width: calc(100% - 2rem);
+    margin: 0.4rem 1rem 0.2rem;
+    padding: 0.4rem;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .clear-all:hover:not(:disabled) { background: var(--card-hover); border-color: var(--accent-strong); }
+  .clear-all:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+  .filter-title {
+    padding: 0.6rem 1rem 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .filter-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3rem 1rem;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .filter-item:hover { background: var(--card-hover); }
+  .filter-item.active { background: rgba(59, 130, 246, 0.2); color: #fff; font-weight: 600; }
+  .filter-item .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .results-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .results-title { font-size: 1.15rem; font-weight: 600; color: #fff; }
+  .results-title .q { color: var(--accent); }
+  #count.msg { font-size: 0.9rem; font-weight: 400; color: var(--muted); margin-top: 1rem; }
+  .perpage { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .perpage select { padding: 0.2rem 0.4rem; font-size: 0.85rem; }
+  .result {
+    padding: 0.9rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .ref { font-weight: 700; color: var(--accent); font-size: 1rem; text-decoration: none; }
+  a.ref:hover { text-decoration: underline; }
+  .text { margin: 0.3rem 0 0 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.1rem; line-height: 1.65; }
+  .links { margin-top: 0.4rem; font-size: 0.82rem; }
+  .links a { color: var(--muted); text-decoration: none; margin-right: 1rem; }
+  .links a:hover { color: var(--accent); text-decoration: underline; }
+  mark { background: var(--mark-bg); color: var(--mark-fg); font-weight: 700; border-radius: 2px; padding: 0 2px; }
+  #pager { display: flex; gap: 0.4rem; justify-content: center; align-items: center; margin-top: 1.25rem; font-size: 0.9rem; color: var(--muted); }
+  #pager button {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.9rem; cursor: pointer;
+  }
+  #pager button:hover:not(:disabled) { background: var(--card-hover); border-color: var(--accent-strong); }
+  #pager button:disabled { opacity: 0.4; cursor: default; }
+  .layout > section { min-width: 0; }
+  select { max-width: 100%; }
+  #filterToggle {
+    display: none;
+    width: 100%;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  @media (max-width: 760px) {
+    main { padding: 1rem 0.75rem 2rem; }
+    .search-card { padding: 1rem; }
+    .layout { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+    #filterToggle { display: block; }
+    aside#filters { display: none; position: static; max-height: 16rem; }
+    aside#filters.open { display: block; }
+    .row, .row label.field { width: 100%; }
+    .row select { flex: 1; min-width: 0; }
+    .flags { gap: 0.9rem; }
+    .flags label { grid-template-columns: 1.5rem 1fr; row-gap: 0.15rem; }
+    .flags .hint { grid-column: 2; }
+    .result { padding: 0.8rem 0; }
+    .text { font-size: 1.05rem; }
+  }
+</style>
+</head>
+<body>
+<header><h1>Bible Search</h1></header>
+<main>
+  <div class="search-card">
+    <input type="text" id="words" placeholder="Enter keywords, e.g. in Him">
+    <div class="row">
+      <label class="field">Version
+        <select id="version">
+          <option value="NASB">NASB - New American Standard Bible</option>
+          <option value="Living">TLB - The Living Bible</option>
+          <option value="Amplified">AMP - Amplified Bible</option>
+          <option value="Message">MSG - The Message</option>
+        </select>
+      </label>
+    </div>
+    <div id="loadRow">
+      <label class="field">Load file <input type="file" id="fileInput" accept=".txt"></label>
+    </div>
+    <div class="flags">
+      <label><input type="checkbox" id="adjacent"><span class="name">Exact Phrase</span><span class="hint">Words must appear together, in this order</span></label>
+      <label><input type="checkbox" id="wholeWords" checked><span class="name">Whole Words</span><span class="hint">Only find your word on its own, not inside longer words like "mankind"</span></label>
+      <label><input type="checkbox" id="caseSensitive"><span class="name">Match Capitals</span><span class="hint">Capital letters must match: "Him" won't find "him"</span></label>
+    </div>
+  </div>
+  <div id="count" class="msg"></div>
+  <div class="layout empty" id="layout">
+    <div>
+      <button id="filterToggle" type="button">Filter by Testament / Book ▾</button>
+      <aside id="filters"></aside>
+    </div>
+    <section>
+      <div class="results-head">
+        <div id="resultsTitle" class="results-title"></div>
+        <label class="perpage">Results per page
+          <select id="perPage"><option>25</option><option>50</option><option>100</option></select>
+        </label>
+      </div>
+      <div id="results"></div>
+      <nav id="pager"></nav>
+    </section>
+  </div>
+</main>
+
+<script>
+const VERSIONS = {
+  NASB: { file: "versions/nasb.txt", bgVersion: "NASB" },
+  Living: { file: "versions/living.txt", bgVersion: "TLB" },
+  Amplified: { file: "versions/amplified.txt", bgVersion: "AMP" },
+  Message: { file: "versions/message.txt", bgVersion: "MSG" },
+};
+
+let lines = [];
+
+function loadStateFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  document.getElementById("words").value = params.get("q") || "";
+  document.getElementById("adjacent").checked = params.get("adjacent") === "1";
+  document.getElementById("wholeWords").checked = params.get("whole") !== "0" && params.get("supersets") !== "1";
+  document.getElementById("caseSensitive").checked = params.get("case") === "1";
+  const version = params.get("version");
+  if (version && VERSIONS[version]) {
+    document.getElementById("version").value = version;
+  }
+}
+
+function updateUrl() {
+  const params = new URLSearchParams();
+  const words = document.getElementById("words").value;
+  if (words) params.set("q", words);
+  if (document.getElementById("adjacent").checked) params.set("adjacent", "1");
+  if (!document.getElementById("wholeWords").checked) params.set("whole", "0");
+  if (document.getElementById("caseSensitive").checked) params.set("case", "1");
+  params.set("version", document.getElementById("version").value);
+  const qs = params.toString();
+  const url = qs ? `${location.pathname}?${qs}` : location.pathname;
+  history.replaceState(null, "", url);
+}
+
+loadStateFromUrl();
+
+function setLines(text) {
+  lines = text.split(/\r?\n/).filter(l => l.trim() && l.trim() !== ".");
+  document.getElementById("loadRow").style.display = "none";
+  search();
+}
+
+let loadToken = 0;
+
+function loadVersion(key) {
+  const { file } = VERSIONS[key];
+  const token = ++loadToken;
+  lines = [];
+  search();
+  document.getElementById("loadRow").style.display = "";
+  document.getElementById("count").textContent = "";
+  // Works when served over http(s). Fails on file:// (browsers block local fetch),
+  // in which case the file picker below is used instead.
+  fetch(file)
+    .then(r => {
+      if (!r.ok) throw new Error(r.status);
+      return r.text();
+    })
+    .then(text => { if (token === loadToken) setLines(text); })
+    .catch(() => {
+      if (token !== loadToken) return;
+      document.getElementById("count").textContent =
+        `Could not auto-load ${file} (opened via file://, or file is missing). Pick the file above.`;
+    });
+}
+
+document.getElementById("version").addEventListener("change", e => {
+  updateUrl();
+  loadVersion(e.target.value);
+});
+
+document.getElementById("fileInput").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => setLines(reader.result);
+  reader.readAsText(file);
+});
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function wordPattern(word, allowSupersets) {
+  const exact = escapeRegex(word);
+  const upper = escapeRegex(word.toUpperCase());
+  const pat = upper !== exact ? `(?:${exact}|${upper})` : exact;
+  return allowSupersets ? pat : `\\b${pat}\\b`;
+}
+
+function buildPattern(words, adjacent, allowSupersets, caseSensitive) {
+  const parts = words.map(w => wordPattern(w, allowSupersets));
+  const joiner = adjacent ? "\\s+" : "(?:\\s+\\S+)*?\\s+";
+  const flags = caseSensitive ? "" : "i";
+  return new RegExp(parts.join(joiner), flags);
+}
+
+function buildHighlight(words, allowSupersets, caseSensitive) {
+  const parts = words.map(w => wordPattern(w, allowSupersets));
+  return new RegExp(parts.join("|"), caseSensitive ? "g" : "gi");
+}
+
+function appendHighlighted(el, text, re) {
+  let last = 0;
+  re.lastIndex = 0;
+  for (let m; (m = re.exec(text)); ) {
+    if (!m[0]) { re.lastIndex++; continue; }
+    el.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const mark = document.createElement("mark");
+    mark.textContent = m[0];
+    el.appendChild(mark);
+    last = m.index + m[0].length;
+  }
+  el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+function titleCase(s) {
+  return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function chapterUrl(ref) {
+  const m = ref.match(/^(.*)\s+(\d+):\d+$/);
+  if (!m) return null;
+  const book = titleCase(m[1]);
+  const chapter = m[2];
+  const bgVersion = VERSIONS[document.getElementById("version").value].bgVersion;
+  const search = encodeURIComponent(`${book} ${chapter}`);
+  return `https://www.biblegateway.com/passage/?search=${search}&version=${bgVersion}`;
+}
+
+const BOOKS = [
+  "genesis","exodus","leviticus","numbers","deuteronomy","joshua","judges","ruth","1 samuel","2 samuel",
+  "1 kings","2 kings","1 chronicles","2 chronicles","ezra","nehemiah","esther","job","psalms","proverbs",
+  "ecclesiastes","song of solomon","isaiah","jeremiah","lamentations","ezekiel","daniel","hosea","joel","amos",
+  "obadiah","jonah","micah","nahum","habakkuk","zephaniah","haggai","zechariah","malachi",
+  "matthew","mark","luke","john","acts","romans","1 corinthians","2 corinthians","galatians","ephesians",
+  "philippians","colossians","1 thessalonians","2 thessalonians","1 timothy","2 timothy","titus","philemon",
+  "hebrews","james","1 peter","2 peter","1 john","2 john","3 john","jude","revelation",
+];
+const OT_COUNT = 39;
+const TESTAMENT = { ot: "Old Testament", nt: "New Testament" };
+
+function bookOf(line) {
+  const i = line.lastIndexOf(" -- ");
+  if (i === -1) return null;
+  const m = line.slice(i + 4).match(/^(.*)\s+\d+:\d+$/);
+  if (!m) return null;
+  const b = m[1].trim().toLowerCase();
+  return b === "psalm" ? "psalms" : b;
+}
+
+function testamentOf(book) {
+  const i = BOOKS.indexOf(book);
+  if (i === -1) return null;
+  return i < OT_COUNT ? "ot" : "nt";
+}
+
+let matches = [];
+let highlight = null;
+let filter = null; // { type: "testament" | "book", value }
+let page = 0;
+
+function passes(m) {
+  if (!filter) return true;
+  return filter.type === "book" ? m.book === filter.value : testamentOf(m.book) === filter.value;
+}
+
+function search() {
+  updateUrl();
+  const raw = document.getElementById("words").value.trim();
+  const countEl = document.getElementById("count");
+  matches = [];
+  filter = null;
+  page = 0;
+  document.getElementById("filters").classList.remove("open");
+
+  if (!raw) {
+    if (lines.length) countEl.textContent = "";
+    render();
+    return;
+  }
+
+  const words = raw.split(/\s+/);
+  const adjacent = document.getElementById("adjacent").checked;
+  const allowSupersets = !document.getElementById("wholeWords").checked;
+  const caseSensitive = document.getElementById("caseSensitive").checked;
+  const pattern = buildPattern(words, adjacent, allowSupersets, caseSensitive);
+  highlight = buildHighlight(words, allowSupersets, caseSensitive);
+  matches = lines.filter(l => pattern.test(l)).map(line => ({ line, book: bookOf(line) }));
+  render();
+}
+
+function setFilter(f) {
+  document.getElementById("filters").classList.remove("open");
+  filter = filter && f && filter.type === f.type && filter.value === f.value ? null : f;
+  page = 0;
+  render();
+}
+
+function renderFilters() {
+  const el = document.getElementById("filters");
+  const scrollTop = el.scrollTop;
+  el.innerHTML = "";
+  const tCounts = { ot: 0, nt: 0 };
+  const bCounts = {};
+  for (const m of matches) {
+    const t = testamentOf(m.book);
+    if (t) tCounts[t]++;
+    bCounts[m.book] = (bCounts[m.book] || 0) + 1;
+  }
+  const addTitle = text => {
+    const d = document.createElement("div");
+    d.className = "filter-title";
+    d.textContent = text;
+    el.appendChild(d);
+  };
+  const addItem = (label, n, type, value) => {
+    const d = document.createElement("div");
+    d.className = "filter-item";
+    if (filter && filter.type === type && filter.value === value) d.classList.add("active");
+    const l = document.createElement("span");
+    l.textContent = label;
+    const c = document.createElement("span");
+    c.className = "n";
+    c.textContent = n;
+    d.append(l, c);
+    d.addEventListener("click", () => setFilter({ type, value }));
+    el.appendChild(d);
+  };
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "clear-all";
+  clear.textContent = "Clear All";
+  clear.disabled = !filter;
+  clear.addEventListener("click", () => setFilter(null));
+  el.appendChild(clear);
+  addTitle("Testament");
+  for (const t of ["ot", "nt"]) if (tCounts[t]) addItem(TESTAMENT[t], tCounts[t], "testament", t);
+  addTitle("Book");
+  for (const b of BOOKS) if (bCounts[b]) addItem(titleCase(b), bCounts[b], "book", b);
+  el.scrollTop = scrollTop;
+  updateFilterToggle();
+}
+
+function updateFilterToggle() {
+  const btn = document.getElementById("filterToggle");
+  const open = document.getElementById("filters").classList.contains("open");
+  let label = "Filter by Testament / Book";
+  if (filter) label += ": " + (filter.type === "book" ? titleCase(filter.value) : TESTAMENT[filter.value]);
+  btn.textContent = label + (open ? " ▴" : " ▾");
+  btn.setAttribute("aria-expanded", open);
+}
+
+function renderResult(m) {
+  const line = m.line;
+  const sep = " -- ";
+  const idx = line.lastIndexOf(sep);
+  const div = document.createElement("div");
+  div.className = "result";
+  if (idx === -1) {
+    div.textContent = line;
+    return div;
+  }
+  const text = line.slice(0, idx);
+  const ref = line.slice(idx + sep.length);
+  const url = chapterUrl(ref);
+
+  const refEl = document.createElement(url ? "a" : "div");
+  refEl.className = "ref";
+  refEl.textContent = titleCase(ref);
+  if (url) { refEl.href = url; refEl.target = "_blank"; refEl.rel = "noopener"; }
+  const textDiv = document.createElement("div");
+  textDiv.className = "text";
+  appendHighlighted(textDiv, text, highlight);
+  div.append(refEl, textDiv);
+
+  if (url) {
+    const links = document.createElement("div");
+    links.className = "links";
+    const full = document.createElement("a");
+    full.href = url; full.target = "_blank"; full.rel = "noopener";
+    full.textContent = "Full Chapter";
+    links.appendChild(full);
+    div.appendChild(links);
+  }
+  return div;
+}
+
+function render() {
+  const layout = document.getElementById("layout");
+  const countEl = document.getElementById("count");
+  const resultsEl = document.getElementById("results");
+  const raw = document.getElementById("words").value.trim();
+  resultsEl.innerHTML = "";
+  document.getElementById("pager").innerHTML = "";
+
+  if (!raw || !lines.length) {
+    layout.classList.add("empty");
+    return;
+  }
+  if (!matches.length) {
+    layout.classList.add("empty");
+    countEl.textContent = `No results for "${raw}".`;
+    return;
+  }
+  layout.classList.remove("empty");
+  countEl.textContent = "";
+
+  const visible = matches.filter(passes);
+  const perPage = parseInt(document.getElementById("perPage").value, 10);
+  const pages = Math.max(1, Math.ceil(visible.length / perPage));
+  page = Math.min(page, pages - 1);
+
+  const version = VERSIONS[document.getElementById("version").value].bgVersion;
+  const title = document.getElementById("resultsTitle");
+  title.textContent = `${visible.length} result${visible.length === 1 ? "" : "s"} for `;
+  const q = document.createElement("span");
+  q.className = "q";
+  q.textContent = `"${raw}"`;
+  title.append(q, ` in ${version}`);
+
+  renderFilters();
+
+  for (const m of visible.slice(page * perPage, (page + 1) * perPage)) {
+    resultsEl.appendChild(renderResult(m));
+  }
+
+  if (pages > 1) {
+    const pager = document.getElementById("pager");
+    const mk = (label, target, disabled) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.disabled = disabled;
+      b.addEventListener("click", () => { page = target; render(); window.scrollTo({ top: 0 }); });
+      return b;
+    };
+    const info = document.createElement("span");
+    info.textContent = `Page ${page + 1} of ${pages}`;
+    pager.append(mk("‹ Prev", page - 1, page === 0), info, mk("Next ›", page + 1, page === pages - 1));
+  }
+}
+
+document.getElementById("filterToggle").addEventListener("click", () => {
+  document.getElementById("filters").classList.toggle("open");
+  updateFilterToggle();
+});
+document.getElementById("perPage").addEventListener("change", () => { page = 0; render(); });
+document.getElementById("words").addEventListener("input", search);
+document.getElementById("adjacent").addEventListener("change", search);
+document.getElementById("wholeWords").addEventListener("change", search);
+document.getElementById("caseSensitive").addEventListener("change", search);
+loadVersion(document.getElementById("version").value);
+</script>
+</body>
+</html>
